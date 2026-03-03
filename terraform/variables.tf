@@ -54,8 +54,8 @@ variable "database_vpc_id" {
 }
 
 variable "database_subnet_ids" {
-  description = "List of private subnet IDs within the database VPC to deploy the NLB into. Should span multiple AZs."
-  type        = list(string)
+  description = "Comma-separated list of private subnet IDs within the database VPC to deploy the NLB into. Should span multiple AZs."
+  type        = string
 }
 
 variable "database_private_ip" {
@@ -76,11 +76,11 @@ variable "database_domain" {
 variable "nlb_name" {
   description = "Name for the Network Load Balancer fronting the database."
   type        = string
-  default     = "jdbc-privatelink-nlb"
+  default     = "jdbc-egress-privatelink-nlb"
 }
 
 variable "endpoint_service_name" {
   description = "Friendly name for the VPC Endpoint Service backing the NLB."
   type        = string
-  default     = "jdbc-privatelink-endpoint-service"
+  default     = "jdbc-egress-privatelink-endpoint-service"
 }
