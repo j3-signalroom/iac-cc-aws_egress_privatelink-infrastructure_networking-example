@@ -8,6 +8,10 @@ terraform {
     }
 
     required_providers {
+      aws = {
+        source  = "hashicorp/aws"
+        version = "6.34.0"
+      }
       confluent = {
         source  = "confluentinc/confluent"
         version = "2.62.0"
@@ -126,7 +130,7 @@ resource "confluent_dns_record" "egress_s3" {
 # =======================================================================================
 
 # --------------------------------------------------------------------------------------
-# TARGET GROUP (docs Step 2)
+# TARGET GROUP AND ATTACHMENT
 #
 # IP address target type allows registration of any private IP — RDS, EC2, or
 # on-premises. One target group per port. For multiple databases on different ports,
@@ -173,7 +177,7 @@ resource "aws_lb_target_group_attachment" "jdbc" {
 }
 
 # --------------------------------------------------------------------------------------
-# NLB SECURITY GROUP (docs Step 3)
+# NLB SECURITY GROUP
 #
 # enforce_security_group_inbound_rules_on_private_link_traffic = "off" on the NLB
 # (below) disables inbound rule enforcement for PrivateLink traffic at the NLB level.
@@ -233,7 +237,7 @@ resource "aws_security_group_rule" "nlb_jdbc_egress_all" {
 }
 
 # --------------------------------------------------------------------------------------
-# NETWORK LOAD BALANCER (docs Step 3)
+# NETWORK LOAD BALANCER (NLB) AND LISTENER
 #
 # Must be internal — PrivateLink endpoint services require an internal NLB.
 # Cross-zone load balancing is enabled to prevent AZ-mismatch failures between
@@ -276,14 +280,14 @@ resource "aws_lb_listener" "jdbc" {
 }
 
 # --------------------------------------------------------------------------------------
-# VPC ENDPOINT SERVICE (docs Step 4)
+# VPC ENDPOINT SERVICE
 #
-# STEP 5 — AUTOMATED: Confluent's IAM principal ARN is set in allowed_principals,
-# authorizing Confluent to create a VPC endpoint against this service. No manual
-# console step needed for this step.
+# AUTOMATED: Confluent's IAM principal ARN is set in allowed_principals, authorizing
+# Confluent to create a VPC endpoint against this service. No manual console step
+# needed for this step.
 #
-# STEP 7 — MANUAL (cannot be automated): acceptance_required = true means AWS holds
-# every new endpoint connection in "Pending accept" regardless of allowed_principals.
+# MANUAL (cannot be automated): acceptance_required = true means AWS holds every
+# new endpoint connection in "Pending accept" regardless of allowed_principals.
 # After terraform apply, go to:
 #   AWS Console → VPC → Endpoint services → [this service] → Endpoint connections
 #   → select the pending connection → Actions → Accept
@@ -311,7 +315,7 @@ resource "aws_vpc_endpoint_service" "jdbc" {
 }
 
 # =======================================================================================
-# JDBC EGRESS — CONFLUENT ACCESS POINT AND DNS RECORD (docs Steps 6 and 8)
+# JDBC EGRESS — CONFLUENT ACCESS POINT AND DNS RECORD
 #
 # The access point instructs Confluent to create an Interface VPC Endpoint targeting
 # the endpoint service above. High availability deploys NICs in multiple AZs —
@@ -321,8 +325,8 @@ resource "aws_vpc_endpoint_service" "jdbc" {
 # network. The connector uses var.database_domain as its hostname — the value here
 # must exactly match the hostname in the connector's connection.url.
 #
-# Both resources remain in "Provisioning" until the manual AWS acceptance step
-# (docs Step 7) is completed and the access point reaches "Ready".
+# Both resources remain in "Provisioning" until the manual AWS acceptance step is
+# completed and the access point reaches "Ready".
 # =======================================================================================
 resource "confluent_access_point" "egress_jdbc" {
   display_name = "ccloud-egress-accesspoint-jdbc-${var.aws_region}"
