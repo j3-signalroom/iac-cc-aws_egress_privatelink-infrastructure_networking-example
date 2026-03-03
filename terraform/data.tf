@@ -7,3 +7,7 @@ data "confluent_environment" "non_prod" {
 data "aws_vpc" "database" {
   id = var.database_vpc_id
 }
+
+locals {
+  database_subnet_ids = length(var.database_subnet_ids) > 0 ? split(",", var.database_subnet_ids) : []
+}

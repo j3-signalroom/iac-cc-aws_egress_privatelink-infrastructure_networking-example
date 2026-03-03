@@ -216,7 +216,7 @@ resource "aws_lb" "jdbc" {
   name               = var.nlb_name
   internal           = true
   load_balancer_type = "network"
-  subnets            = var.database_subnet_ids
+  subnets            = local.database_subnet_ids
   security_groups    = [aws_security_group.nlb_jdbc.id]
 
   enforce_security_group_inbound_rules_on_private_link_traffic = "off"

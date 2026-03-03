@@ -54,8 +54,8 @@ variable "database_vpc_id" {
 }
 
 variable "database_subnet_ids" {
-  description = "List of private subnet IDs within the database VPC to deploy the NLB into. Should span multiple AZs."
-  type        = list(string)
+  description = "Comma-separated list of private subnet IDs within the database VPC to deploy the NLB into. Should span multiple AZs."
+  type        = string
 }
 
 variable "database_private_ip" {

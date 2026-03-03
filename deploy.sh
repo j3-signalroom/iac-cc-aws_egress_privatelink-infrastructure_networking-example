@@ -100,16 +100,16 @@ do
             arg_length=18
             database_vpc_id=${arg:$arg_length:$(expr ${#arg} - $arg_length)};;
         *"--database-subnet-ids="*)
-            arg_length=25
+            arg_length=22
             database_subnet_ids=${arg:$arg_length:$(expr ${#arg} - $arg_length)};;
         *"--database-private-ip="*)
-            arg_length=27
+            arg_length=22
             database_private_ip=${arg:$arg_length:$(expr ${#arg} - $arg_length)};;
         *"--database-port="*)
-            arg_length=20
+            arg_length=17
             database_port=${arg:$arg_length:$(expr ${#arg} - $arg_length)};;
         *"--database-domain="*)
-            arg_length=22
+            arg_length=19
             database_domain=${arg:$arg_length:$(expr ${#arg} - $arg_length)};;
         *)
             echo
@@ -259,7 +259,7 @@ deploy_infrastructure() {
     export TF_VAR_confluent_api_secret="${confluent_api_secret}"
     export TF_VAR_confluent_environment_id="${confluent_environment_id}"
     export TF_VAR_database_vpc_id="${database_vpc_id}"
-    export TF_VAR_database_subnet_ids="${database_subnet_ids}"
+    export TF_VAR_database_subnet_ids=${database_subnet_ids}
     export TF_VAR_database_private_ip="${database_private_ip}"
     export TF_VAR_database_port="${database_port}"
     export TF_VAR_database_domain="${database_domain}"
@@ -314,7 +314,7 @@ undeploy_infrastructure() {
     export TF_VAR_confluent_api_secret="${confluent_api_secret}"
     export TF_VAR_confluent_environment_id="${confluent_environment_id}"
     export TF_VAR_database_vpc_id="${database_vpc_id}"
-    export TF_VAR_database_subnet_ids="${database_subnet_ids}"
+    export TF_VAR_database_subnet_ids=${database_subnet_ids}
     export TF_VAR_database_private_ip="${database_private_ip}"
     export TF_VAR_database_port="${database_port}"
     export TF_VAR_database_domain="${database_domain}"
