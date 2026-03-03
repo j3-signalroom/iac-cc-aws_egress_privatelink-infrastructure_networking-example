@@ -26,6 +26,7 @@ It is a downstream workspace that depends on the environment ID output from the 
     + [6.1 Shared](#61-shared)
     + [6.2 S3 Egress](#62-s3-egress)
     + [6.3 JDBC Egress](#63-jdbc-egress)
+        + [6.3.1 Why the NLB?](#631-why-the-nlb)
 + [7.0 Let's Get Started](#70-lets-get-started)
     + [7.1 Deploy the Infrastructure](#71-deploy-the-infrastructure)
     + [7.2 Teardown the Infrastructure](#72-teardown-the-infrastructure)
@@ -283,6 +284,30 @@ Set `confluent_environment_id` as a Terraform variable in TFC before the first a
 | `aws_vpc_endpoint_service.jdbc` | `aws_vpc_endpoint_service` | Exposes the NLB as a PrivateLink endpoint service; pre-authorizes Confluent's IAM principal |
 | `confluent_access_point.egress_jdbc` | `confluent_access_point` | Interface VPC Endpoint targeting the JDBC endpoint service; HA enabled |
 | `confluent_dns_record.egress_jdbc` | `confluent_dns_record` | Maps `database_domain` to the JDBC VPC endpoint |
+
+#### **6.3.1 Why the NLB?**
+The reason for a NLB is because **AWS requires it**.
+
+When you need PrivateLink connectivity to a self-managed service (_non-native_ AWS service), the AWS VPC Endpoint Service construct supports only an **internal NLB**. You must front it with an NLB and expose that NLB as the PrivateLink endpoint service. This is a fundamental AWS requirement. There is no way to create a PrivateLink endpoint directly to an IP and port without the NLB abstraction.
+
+Here is the logic flow for the JDBC path:
+
+1. **S3 is a native AWS PrivateLink service**, so Confluent can create an interface VPC endpoint to it directly without any AWS infrastructure on your part.
+
+2. **A database is not a native AWS PrivateLink service**, so you must first create the AWS infrastructure to expose it via PrivateLink: target group → NLB → endpoint service.  AWS simply won't accept an Application Load Balancer (ALB) or a direct IP/port as a PrivateLink target, it must be an NLB.
+
+3. **Why NLB and not ALB?** NLB operates at Layer 4 (TCP) and supports IP target types, which allows it to forward raw TCP traffic to the database's private IP and port without any protocol awareness. ALB operates at Layer 7 (HTTP) and does not support IP target types, it requires targets to be registered by instance ID and only forwards HTTP traffic. Since databases typically use proprietary protocols over TCP, NLB is the appropriate choice.
+
+The resource chain in your `main.tf` reflects this precisely:
+
+```
+Target Group (IP type, database_port)
+  → NLB (internal, TCP listener)
+    → VPC Endpoint Service
+      → confluent_access_point (egress_jdbc)
+```
+
+The NLB is essentially the **PrivateLink adapter**, it gives AWS the stable, routable endpoint it needs to plumb the private tunnel from Confluent Cloud into your VPC.
 
 ---
 
