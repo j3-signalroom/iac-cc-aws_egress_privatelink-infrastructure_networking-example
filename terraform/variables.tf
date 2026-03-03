@@ -76,11 +76,11 @@ variable "database_domain" {
 variable "nlb_name" {
   description = "Name for the Network Load Balancer fronting the database."
   type        = string
-  default     = "jdbc-privatelink-nlb"
+  default     = "jdbc-egress-privatelink-nlb"
 }
 
 variable "endpoint_service_name" {
   description = "Friendly name for the VPC Endpoint Service backing the NLB."
   type        = string
-  default     = "jdbc-privatelink-endpoint-service"
+  default     = "jdbc-egress-privatelink-endpoint-service"
 }
