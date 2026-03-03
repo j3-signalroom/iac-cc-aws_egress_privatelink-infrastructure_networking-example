@@ -15,22 +15,41 @@ It is a downstream workspace that depends on the environment ID output from the 
 
 **Table of Contents**
 <!-- toc -->
-1. [Overview](#overview)
-2. [Why JDBC Egress Is Structurally Different from S3](#why-jdbc-egress-is-structurally-different-from-s3)
-3. [Architecture](#architecture)
-4. [Prerequisites](#prerequisites)
-5. [Workspace Dependencies](#workspace-dependencies)
-6. [Resources Provisioned](#resources-provisioned)
-7. [Input Variables](#input-variables)
-8. [Outputs](#outputs)
-9. [Deployment](#deployment)
-   - [Using deploy.sh](#using-deploysh)
-   - [Manual Terraform Steps](#manual-terraform-steps)
-10. [Post-Apply: Manual AWS Acceptance Step (JDBC only)](#post-apply-manual-aws-acceptance-step-jdbc-only)
-11. [Post-Apply: S3 Bucket Policy](#post-apply-s3-bucket-policy)
-12. [Connector Configuration](#connector-configuration)
-13. [Adding More Egress Endpoints](#adding-more-egress-endpoints)
-14. [Troubleshooting](#troubleshooting)
++ [1.0 Overview](#10-overview)
++ [2.0 Why JDBC Egress Is Structurally Different from S3](#20-why-jdbc-egress-is-structurally-different-from-s3)
+    + [2.1 S3: Native AWS PrivateLink Service](#21-s3-native-aws-privatelink-service)
+    + [2.2 JDBC: Self-Managed Service Behind a Network Load Balancer](#22-jdbc-self-managed-service-behind-a-network-load-balancer)
+    + [2.3 Side-by-Side Comparison](#23-side-by-side-comparison)
++ [3.0 Architecture](#30-architecture)
+    + [3.1 S3 flow](#31-s3-flow)
+    + [3.2 JDBC flow](#32-jdbc-flow)
++ [4.0 Prerequisites](#40-prerequisites)
++ [5.0 Workspace Dependencies](#50-workspace-dependencies)
++ [6.0 Resources Provisioned](#60-resources-provisioned)
+    + [6.1 Shared](#61-shared)
+    + [6.2 S3 Egress](#62-s3-egress)
+    + [6.3 JDBC Egress](#63-jdbc-egress)
++ [Input Variables](#input-variables)
+    + [Confluent Cloud](#confluent-cloud)
+    + [AWS Provider](#aws-provider)
+    + [JDBC / Database](#jdbc--database)
++ [Outputs](#outputs)
+    + [Gateway](#gateway)
+    + [S3](#s3)
+    + [JDBC](#jdbc)
++ [Deployment](#deployment)
+    + [Using deploy.sh](#using-deploysh)
+    + [Manual Terraform Steps](#manual-terraform-steps)
++ [Post-Apply: Manual AWS Acceptance Step (JDBC only)](#post-apply-manual-aws-acceptance-step-jdbc-only)
++ [Post-Apply: S3 Bucket Policy](#post-apply-s3-bucket-policy)
++ [Connector Configuration](#connector-configuration)
+    + [S3 Sink Connector](#s3-sink-connector)
+    + [JDBC Source / Sink Connector](#jdbc-source--sink-connector)
++ [Adding More Egress Endpoints](#adding-more-egress-endpoints)
++ [Troubleshooting](#troubleshooting)
++ [JDBC access point stuck in `Provisioning` or `Pending accept`](#jdbc-access-point-stuck-in-provisioning-or-pending-accept)
++ [JDBC connector cannot reach the database even after access point is `Ready`](#jdbc-connector-cannot-reach-the-database-even-after-access-point-is-ready)
+
 <!-- tocstop -->
 
 ---
@@ -73,9 +92,9 @@ A database, whether RDS, EC2-hosted, or on-premises, is not a native AWS Private
 
 Only after this AWS infrastructure exists can Confluent create a VPC endpoint against it via `confluent_access_point`.
 
-There is also a **step that Terraform cannot automate**: even though this workspace pre-authorizes Confluent's IAM principal in `aws_vpc_endpoint_service.allowed_principals`, AWS still requires explicit operator acceptance of each new endpoint connection request. This is an AWS-enforced safety gate (`acceptance_required = true`) that exists regardless of the allowlist — it prevents accidental or unauthorized endpoint connections. The `confluent_access_point` will remain in `Pending accept` until an operator accepts it in the AWS console.
+> _There is also a **step that Terraform cannot automate**: even though this workspace pre-authorizes Confluent's IAM principal in `aws_vpc_endpoint_service.allowed_principals`, AWS still requires explicit operator acceptance of each new endpoint connection request. This is an AWS-enforced safety gate (`acceptance_required = true`) that exists regardless of the allowlist, it prevents accidental or unauthorized endpoint connections. The `confluent_access_point` will remain in `Pending accept` until an operator accepts it in the AWS console._
 
-### Side-by-Side Comparison
+### **2.3 Side-by-Side Comparison**
 
 | Dimension | S3 Egress | JDBC Egress |
 |---|---|---|
@@ -91,7 +110,7 @@ There is also a **step that Terraform cannot automate**: even though this worksp
 
 ---
 
-## Architecture
+## **3.0 Architecture**
 
 ```mermaid
 flowchart TB
@@ -197,7 +216,7 @@ flowchart TB
     style DB fill:#fef3c7,stroke:#b45309,color:#1a1a1a
 ```
 
-### S3 flow
+### **3.1 S3 flow**
 
 ```
 Confluent Cloud (Enterprise Cluster)
@@ -208,7 +227,7 @@ Confluent Cloud (Enterprise Cluster)
                           └── Bucket Policy: restrict to egress_s3_vpc_endpoint_id
 ```
 
-### JDBC flow
+### **3.2 JDBC flow**
 
 ```
 Confluent Cloud (Enterprise Cluster)
@@ -222,7 +241,7 @@ Confluent Cloud (Enterprise Cluster)
 
 ---
 
-## Prerequisites
+## **4.0 Prerequisites**
 
 - An existing Confluent Cloud environment with at least one Enterprise Kafka cluster (provisioned by the ingress workspace)
 - A database instance (RDS, EC2-hosted, or on-premises) with a known private IP and stable port
@@ -233,7 +252,7 @@ Confluent Cloud (Enterprise Cluster)
 
 ---
 
-## Workspace Dependencies
+## **5.0 Workspace Dependencies**
 
 This workspace consumes one output from the ingress workspace:
 
@@ -245,23 +264,23 @@ Set `confluent_environment_id` as a Terraform variable in TFC before the first a
 
 ---
 
-## Resources Provisioned
+## **6.0 Resources Provisioned**
 
-### Shared
+### **6.1 Shared**
 
 | Resource | Type | Description |
 |---|---|---|
 | `confluent_gateway.non_prod_egress` | `confluent_gateway` | Egress PrivateLink gateway — shared by S3 and JDBC access points |
 | `time_sleep.wait_for_egress_gateway` | `time_sleep` | 2-minute delay for Confluent control plane to fully provision the gateway |
 
-### S3 Egress
+### **6.2 S3 Egress**
 
 | Resource | Type | Description |
 |---|---|---|
 | `confluent_access_point.egress_s3` | `confluent_access_point` | Interface VPC Endpoint targeting `com.amazonaws.<region>.s3` |
 | `confluent_dns_record.egress_s3` | `confluent_dns_record` | Maps `s3.<region>.amazonaws.com` to the S3 VPC endpoint |
 
-### JDBC Egress
+### **6.3 JDBC Egress**
 
 | Resource | Type | Description |
 |---|---|---|
