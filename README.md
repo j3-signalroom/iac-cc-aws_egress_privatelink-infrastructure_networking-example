@@ -6,10 +6,7 @@ It provisions two egress patterns side by side, sharing a single egress gateway:
 - **S3 Sink Connector** — native AWS PrivateLink service, fully automated
 - **JDBC Source/Sink Connector** — self-managed database behind a Network Load Balancer, requires one manual AWS acceptance step
 
-It is a downstream workspace that depends on the environment ID output from the [ingress PrivateLink workspace](https://github.com/signalroom/iac-cc-aws-privatelink-infrastructure-networking-example).
-
-> **Terraform Cloud Workspace:** `iac-cc-aws-egress-privatelink-infrastructure-networking-example`
-> **Organization:** `signalroom`
+It is a downstream workspace that depends on the environment ID output from the [iac-cc-aws-ingress-privatelink-infrastructure-networking-example](https://github.com/j3-signalroom/iac-cc-aws_ingress_privatelink-infrastructure_networking-example).
 
 ---
 
@@ -43,6 +40,7 @@ It is a downstream workspace that depends on the environment ID output from the 
     + [11.2 JDBC Source / Sink Connector](#112-jdbc-source--sink-connector)
 + [12.0 Adding More Egress Endpoints](#120-adding-more-egress-endpoints)
 + [13.0 Troubleshooting](#130-troubleshooting)
++ [14.0 Resources](#140-resources)
 <!-- tocstop -->
 
 ---
@@ -506,3 +504,11 @@ Verify the S3 bucket policy includes `egress_s3_vpc_endpoint_id` in the `aws:sou
 **`deploy.sh` fails with `aws2-wrap: command not found`**
 
 Install `aws2-wrap`: `pip install aws2-wrap`. This is required for SSO credential export used by the script.
+
+## **14.0 Resources**
+- [Use AWS Egress PrivateLink Endpoints for Dedicated Clusters on Confluent Cloud](https://docs.confluent.io/cloud/current/networking/aws-egress-privatelink.html#use-aws-egress-privatelink-endpoints-for-dedicated-clusters-on-ccloud)
+- [Use AWS Egress PrivateLink Endpoints for Serverless Products on Confluent Cloud](https://docs.confluent.io/cloud/current/networking/aws-egress-privatelink-esku.html#use-aws-egress-privatelink-endpoints-for-serverless-products-on-ccloud)
+- [Egress PrivateLink Endpoints Setup Guide: First-Party Services on AWS for Confluent Cloud](https://docs.confluent.io/cloud/current/connectors/networking/aws-eap-1st-party.html#egress-privatelink-endpoints-setup-guide-first-party-services-on-aws-for-ccloud)
+- [Egress PrivateLink Endpoints Setup Guide: Self-Managed Services on AWS for Confluent Cloud](https://docs.confluent.io/cloud/current/connectors/networking/aws-eap-self-managed.html#egress-privatelink-endpoints-setup-guide-self-managed-services-on-aws-for-ccloud)
+- [Egress PrivateLink Endpoints Setup Guide: RDS on AWS for Confluent Cloud](https://docs.confluent.io/cloud/current/connectors/networking/aws-eap-rds.html#egress-privatelink-endpoints-setup-guide-rds-on-aws-for-ccloud)
+- [Egress PrivateLink Endpoints Setup Guide: DocumentDB on AWS for Confluent Cloud](https://docs.confluent.io/cloud/current/connectors/networking/aws-eap-documentdb.html#egress-privatelink-endpoints-setup-guide-documentdb-on-aws-for-ccloud)
