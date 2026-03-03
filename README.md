@@ -62,7 +62,7 @@ The entire S3 egress path is **fully automated by Terraform** and transitions to
 
 ### **2.2 JDBC: Self-Managed Service Behind a Network Load Balancer**
 
-A database — whether RDS, EC2-hosted, or on-premises — is not a native AWS PrivateLink service. AWS PrivateLink can only front services that are exposed through a **Network Load Balancer**. This means before Confluent can create a VPC endpoint to your database, you must first build the AWS-side PrivateLink infrastructure yourself:
+A database, whether RDS, EC2-hosted, or on-premises, is not a native AWS PrivateLink service. AWS PrivateLink can only front services that are exposed through a **Network Load Balancer**. This means before Confluent can create a VPC endpoint to your database, you must first build the AWS-side PrivateLink infrastructure yourself:
 
 | Layer | Resource | Why it's needed |
 |---|---|---|

@@ -47,7 +47,10 @@ resource "confluent_gateway" "non_prod_egress" {
 # Allow 2 minutes for the Confluent control plane to fully provision the gateway
 # before any dependent resources attempt to use it.
 resource "time_sleep" "wait_for_egress_gateway" {
-  depends_on      = [confluent_gateway.non_prod_egress]
+  depends_on      = [
+    confluent_gateway.non_prod_egress
+  ]
+
   create_duration = "2m"
 }
 
@@ -82,7 +85,9 @@ resource "confluent_access_point" "egress_s3" {
     enable_high_availability  = false
   }
 
-  depends_on = [time_sleep.wait_for_egress_gateway]
+  depends_on = [
+    time_sleep.wait_for_egress_gateway
+  ]
 }
 
 resource "confluent_dns_record" "egress_s3" {
@@ -102,7 +107,9 @@ resource "confluent_dns_record" "egress_s3" {
     id = confluent_access_point.egress_s3.id
   }
 
-  depends_on = [confluent_access_point.egress_s3]
+  depends_on = [
+    confluent_access_point.egress_s3
+  ]
 }
 
 # =======================================================================================
@@ -149,12 +156,20 @@ resource "aws_lb_target_group" "jdbc" {
     ManagedBy = "Terraform Cloud"
     Purpose   = "JDBC PrivateLink target group"
   }
+
+  depends_on = [ 
+    confluent_dns_record.egress_s3 
+  ]
 }
 
 resource "aws_lb_target_group_attachment" "jdbc" {
   target_group_arn = aws_lb_target_group.jdbc.arn
   target_id        = var.database_private_ip
   port             = var.database_port
+
+  depends_on = [
+    aws_lb_target_group.jdbc
+  ]
 }
 
 # --------------------------------------------------------------------------------------
@@ -183,6 +198,10 @@ resource "aws_security_group" "nlb_jdbc" {
     ManagedBy = "Terraform Cloud"
     Purpose   = "JDBC PrivateLink NLB"
   }
+
+  depends_on = [ 
+    aws_lb_target_group_attachment.jdbc 
+  ]
 }
 
 resource "aws_security_group_rule" "nlb_jdbc_ingress_db_port" {
@@ -193,6 +212,10 @@ resource "aws_security_group_rule" "nlb_jdbc_ingress_db_port" {
   protocol          = "tcp"
   cidr_blocks       = [data.aws_vpc.database.cidr_block]
   security_group_id = aws_security_group.nlb_jdbc.id
+
+  depends_on = [ 
+    aws_security_group.nlb_jdbc 
+  ]
 }
 
 resource "aws_security_group_rule" "nlb_jdbc_egress_all" {
@@ -203,6 +226,10 @@ resource "aws_security_group_rule" "nlb_jdbc_egress_all" {
   protocol          = "-1"
   cidr_blocks       = ["0.0.0.0/0"]
   security_group_id = aws_security_group.nlb_jdbc.id
+
+  depends_on = [ 
+    aws_security_group_rule.nlb_jdbc_ingress_db_port
+  ]
 }
 
 # --------------------------------------------------------------------------------------
@@ -228,7 +255,9 @@ resource "aws_lb" "jdbc" {
     Purpose   = "JDBC PrivateLink NLB"
   }
 
-  depends_on = [aws_security_group.nlb_jdbc]
+  depends_on = [
+    aws_security_group_rule.nlb_jdbc_egress_all
+  ]
 }
 
 resource "aws_lb_listener" "jdbc" {
@@ -240,6 +269,10 @@ resource "aws_lb_listener" "jdbc" {
     type             = "forward"
     target_group_arn = aws_lb_target_group.jdbc.arn
   }
+
+  depends_on = [ 
+    aws_lb.jdbc 
+  ]
 }
 
 # --------------------------------------------------------------------------------------
@@ -330,5 +363,7 @@ resource "confluent_dns_record" "egress_jdbc" {
     id = confluent_access_point.egress_jdbc.id
   }
 
-  depends_on = [confluent_access_point.egress_jdbc]
+  depends_on = [
+    confluent_access_point.egress_jdbc
+  ]
 }
