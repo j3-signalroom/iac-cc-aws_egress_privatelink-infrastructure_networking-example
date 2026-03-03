@@ -29,27 +29,20 @@ It is a downstream workspace that depends on the environment ID output from the 
     + [6.1 Shared](#61-shared)
     + [6.2 S3 Egress](#62-s3-egress)
     + [6.3 JDBC Egress](#63-jdbc-egress)
-+ [Input Variables](#input-variables)
-    + [Confluent Cloud](#confluent-cloud)
-    + [AWS Provider](#aws-provider)
-    + [JDBC / Database](#jdbc--database)
-+ [Outputs](#outputs)
-    + [Gateway](#gateway)
-    + [S3](#s3)
-    + [JDBC](#jdbc)
-+ [Deployment](#deployment)
-    + [Using deploy.sh](#using-deploysh)
-    + [Manual Terraform Steps](#manual-terraform-steps)
-+ [Post-Apply: Manual AWS Acceptance Step (JDBC only)](#post-apply-manual-aws-acceptance-step-jdbc-only)
-+ [Post-Apply: S3 Bucket Policy](#post-apply-s3-bucket-policy)
-+ [Connector Configuration](#connector-configuration)
-    + [S3 Sink Connector](#s3-sink-connector)
-    + [JDBC Source / Sink Connector](#jdbc-source--sink-connector)
-+ [Adding More Egress Endpoints](#adding-more-egress-endpoints)
-+ [Troubleshooting](#troubleshooting)
-+ [JDBC access point stuck in `Provisioning` or `Pending accept`](#jdbc-access-point-stuck-in-provisioning-or-pending-accept)
-+ [JDBC connector cannot reach the database even after access point is `Ready`](#jdbc-connector-cannot-reach-the-database-even-after-access-point-is-ready)
-
++ [7.0 Let's Get Started](#70-lets-get-started)
+    + [7.1 Deploy the Infrastructure](#71-deploy-the-infrastructure)
+    + [7.2 Teardown the Infrastructure](#72-teardown-the-infrastructure)
++ [8.0 Outputs](#80-outputs)
+    + [8.1 Gateway](#81-gateway)
+    + [8.2 S3](#82-s3)
+    + [8.3 JDBC](#83-jdbc)
++ [9.0 Post-Apply: Manual AWS Acceptance Step (JDBC only)](#90-post-apply-manual-aws-acceptance-step-jdbc-only)
++ [10.0 Post-Apply: S3 Bucket Policy](#100-post-apply-s3-bucket-policy)
++ [11.0 Connector Configuration](#110-connector-configuration)
+    + [11.1 S3 Sink Connector](#111-s3-sink-connector)
+    + [11.2 JDBC Source / Sink Connector](#112-jdbc-source--sink-connector)
++ [12.0 Adding More Egress Endpoints](#120-adding-more-egress-endpoints)
++ [13.0 Troubleshooting](#130-troubleshooting)
 <!-- tocstop -->
 
 ---
@@ -117,7 +110,7 @@ flowchart TB
 
     subgraph TFC["Terraform Cloud — signalroom"]
         direction TB
-        WS1["Workspace: iac-cc-aws-privatelink-infrastructure-networking-example\n(Ingress — upstream)"]
+        WS1["Workspace: iac-cc-aws-ingress-privatelink-infrastructure-networking-example\n(Ingress — upstream)"]
         WS2["Workspace: iac-cc-aws-egress-privatelink-infrastructure-networking-example\n(Egress — this workspace)"]
         WS1 -- "output: non_prod_environment_id\n→ var: confluent_environment_id" --> WS2
     end
@@ -295,49 +288,87 @@ Set `confluent_environment_id` as a Terraform variable in TFC before the first a
 
 ---
 
-## Input Variables
+## **7.0 Let's Get Started**
 
-### Confluent Cloud
+### **7.1 Deploy the Infrastructure**
 
-| Variable | Type | Sensitive | Description |
-|---|---|---|---|
-| `confluent_api_key` | `string` | No | Confluent Cloud API Key |
-| `confluent_api_secret` | `string` | **Yes** | Confluent Cloud API Secret |
-| `confluent_environment_id` | `string` | No | Confluent environment ID (from ingress workspace output `non_prod_environment_id`) |
+The `deploy.sh` script handles authentication and Terraform execution: 
 
-### AWS Provider
+```bash
+./deploy.sh create --profile=<SSO_PROFILE_NAME> \
+                   --confluent-api-key=<CONFLUENT_API_KEY> \
+                   --confluent-api-secret=<CONFLUENT_API_SECRET> \
+                   --confluent-environment-id=<CONFLUENT_ENVIRONMENT_ID> \
+                   --database-vpc-id=<DATABASE_VPC_ID> \
+                   --database-subnet-ids=<SUBNET_ID_1,SUBNET_ID_2,SUBNET_ID_3> \
+                   --database-private-ip=<DATABASE_PRIVATE_IP> \
+                   --database-port=<DATABASE_PORT> \
+                   --database-domain=<DATABASE_FQDN>
+```
+Here's the argument table for `deploy.sh create` command:
 
-| Variable | Type | Sensitive | Description |
-|---|---|---|---|
-| `aws_region` | `string` | No | AWS region for all resources (e.g. `us-east-1`) |
-| `aws_access_key_id` | `string` | No | AWS Access Key ID (populated by `deploy.sh` via SSO) |
-| `aws_secret_access_key` | `string` | **Yes** | AWS Secret Access Key |
-| `aws_session_token` | `string` | **Yes** | AWS Session Token |
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `--profile` | ✅ | AWS CLI profile name with SSO credentials configured |
+| `--confluent-api-key` | ✅ | Confluent Cloud API key |
+| `--confluent-api-secret` | ✅ | Confluent Cloud API secret |
+| `--confluent-environment-id` | ✅ | Confluent Cloud environment ID |
+| `--database-vpc-id` | ✅ | AWS VPC ID where the database resides |
+| `--database-subnet-ids` | ✅ | Comma-separated list of subnet IDs for the database |
+| `--database-private-ip` | ✅ | Private IP address of the database |
+| `--database-port` | ✅ | Port on which the database is listening |
+| `--database-domain` | ✅ | Fully qualified domain name of the database |
 
-### JDBC / Database
+> All 9 arguments are required — the script exits with code `85` if any are missing.
 
-| Variable | Type | Sensitive | Description |
-|---|---|---|---|
-| `database_vpc_id` | `string` | No | VPC ID where the database resides; NLB deploys here |
-| `database_subnet_ids` | `string` | No | Comma-separated private subnet IDs for NLB deployment (span multiple AZs) |
-| `database_private_ip` | `string` | No | Private IP of the database instance to register in the NLB target group |
-| `database_port` | `number` | No | TCP port the database listens on (e.g. `5432`, `3306`, `1433`) |
-| `database_domain` | `string` | No | FQDN used in the JDBC connector `connection.url`; must exactly match `confluent_dns_record` domain |
-| `nlb_name` | `string` | No | Name for the NLB (default: `jdbc-egress-privatelink-nlb`) |
-| `endpoint_service_name` | `string` | No | Friendly name for the VPC Endpoint Service (default: `jdbc-egress-privatelink-endpoint-service`) |
+> **Note:** `database_subnet_ids` must be a comma-separated string with no spaces: `subnet-aaa,subnet-bbb,subnet-ccc`. The script passes this value unquoted so Terraform receives it correctly as a list.
+
+### **7.2 Teardown the Infrastructure**
+
+When you're done, use the same script to destroy all provisioned resources:
+
+```bash
+./deploy.sh destroy --profile=<SSO_PROFILE_NAME> \
+                    --confluent-api-key=<CONFLUENT_API_KEY> \
+                    --confluent-api-secret=<CONFLUENT_API_SECRET> \
+                    --confluent-environment-id=<CONFLUENT_ENVIRONMENT_ID> \
+                    --database-vpc-id=<DATABASE_VPC_ID> \
+                    --database-subnet-ids=<SUBNET_ID_1,SUBNET_ID_2,SUBNET_ID_3> \
+                    --database-private-ip=<DATABASE_PRIVATE_IP> \
+                    --database-port=<DATABASE_PORT> \
+                    --database-domain=<DATABASE_FQDN>
+```
+Here's the argument table for `deploy.sh destroy` command:
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `--profile` | ✅ | AWS CLI profile name with SSO credentials configured |
+| `--confluent-api-key` | ✅ | Confluent Cloud API key |
+| `--confluent-api-secret` | ✅ | Confluent Cloud API secret |
+| `--confluent-environment-id` | ✅ | Confluent Cloud environment ID |
+| `--database-vpc-id` | ✅ | AWS VPC ID where the database resides |
+| `--database-subnet-ids` | ✅ | Comma-separated list of subnet IDs for the database |
+| `--database-private-ip` | ✅ | Private IP address of the database |
+| `--database-port` | ✅ | Port on which the database is listening |
+| `--database-domain` | ✅ | Fully qualified domain name of the database |
+
+> All 9 arguments are required — the script exits with code `85` if any are missing.
+
+> **Note:** `database_subnet_ids` must be a comma-separated string with no spaces: `subnet-aaa,subnet-bbb,subnet-ccc`. The script passes this value unquoted so Terraform receives it correctly as a list.
 
 ---
 
-## Outputs
+## **8.0 Outputs**
+The following outputs are available after `./deploy.sh create` completes. They are categorized by relevance to the shared gateway, S3 egress path, and JDBC egress path.
 
-### Gateway
+### **8.1 Gateway**
 
 | Output | Description |
 |---|---|
 | `egress_gateway_id` | Confluent egress gateway ID — shared by S3 and JDBC |
 | `egress_gateway_iam_principal` | IAM Principal ARN Confluent uses to create VPC endpoints; automatically set in `allowed_principals` for JDBC |
 
-### S3
+### **8.2 S3**
 
 | Output | Description | Used For |
 |---|---|---|
@@ -345,7 +376,7 @@ Set `confluent_environment_id` as a Terraform variable in TFC before the first a
 | `egress_s3_vpc_endpoint_id` | AWS VPC endpoint ID for S3 | **S3 bucket policy `aws:sourceVpce` condition** |
 | `s3_connector_endpoint_hint` | Standard S3 endpoint hostname | Connector configuration reference |
 
-### JDBC
+### **8.3 JDBC**
 
 | Output | Description | Used For |
 |---|---|---|
@@ -359,69 +390,7 @@ Set `confluent_environment_id` as a Terraform variable in TFC before the first a
 
 ---
 
-## Deployment
-
-### Using deploy.sh
-
-`deploy.sh` handles AWS SSO authentication, exports all required `TF_VAR_*` environment variables, and runs `terraform init`, `plan`, and `apply` (or `destroy`) in sequence. It also generates a Terraform graph visualization at `docs/images/terraform-visualization.png` after each apply or destroy.
-
-**Create:**
-
-```bash
-./deploy.sh create \
-  --profile=<SSO_PROFILE_NAME> \
-  --confluent-api-key=<CONFLUENT_API_KEY> \
-  --confluent-api-secret=<CONFLUENT_API_SECRET> \
-  --confluent-environment-id=<CONFLUENT_ENVIRONMENT_ID> \
-  --database-vpc-id=<DATABASE_VPC_ID> \
-  --database-subnet-ids=<SUBNET_ID_1,SUBNET_ID_2,SUBNET_ID_3> \
-  --database-private-ip=<DATABASE_PRIVATE_IP> \
-  --database-port=<DATABASE_PORT> \
-  --database-domain=<DATABASE_FQDN>
-```
-
-**Destroy:**
-
-```bash
-./deploy.sh destroy \
-  --profile=<SSO_PROFILE_NAME> \
-  --confluent-api-key=<CONFLUENT_API_KEY> \
-  --confluent-api-secret=<CONFLUENT_API_SECRET> \
-  --confluent-environment-id=<CONFLUENT_ENVIRONMENT_ID> \
-  --database-vpc-id=<DATABASE_VPC_ID> \
-  --database-subnet-ids=<SUBNET_ID_1,SUBNET_ID_2,SUBNET_ID_3> \
-  --database-private-ip=<DATABASE_PRIVATE_IP> \
-  --database-port=<DATABASE_PORT> \
-  --database-domain=<DATABASE_FQDN>
-```
-
-> **Note:** `database_subnet_ids` must be a comma-separated string with no spaces: `subnet-aaa,subnet-bbb,subnet-ccc`. The script passes this value unquoted so Terraform receives it correctly as a list.
-
-### Manual Terraform Steps
-
-```bash
-cd terraform
-
-export TF_VAR_aws_region="us-east-1"
-export TF_VAR_confluent_api_key="..."
-export TF_VAR_confluent_api_secret="..."
-export TF_VAR_confluent_environment_id="env-xxxxx"
-export TF_VAR_database_vpc_id="vpc-xxxxx"
-export TF_VAR_database_subnet_ids="subnet-aaa,subnet-bbb,subnet-ccc"
-export TF_VAR_database_private_ip="10.0.1.55"
-export TF_VAR_database_port=5432
-export TF_VAR_database_domain="mydb.cluster-xxxx.us-east-1.rds.amazonaws.com"
-
-terraform init
-terraform plan -out=tfplan
-terraform apply tfplan
-```
-
-The apply takes approximately **6–10 minutes** — 2 minutes for the gateway sleep, plus Confluent and AWS provisioning time for the NLB, endpoint service, and access points.
-
----
-
-## Post-Apply: Manual AWS Acceptance Step (JDBC only)
+## **9.0 Post-Apply: Manual AWS Acceptance Step (JDBC only)**
 
 > **This step is required before the JDBC connector will work.** The S3 access point does not require this.
 
@@ -437,7 +406,7 @@ The `confluent_access_point` status will transition from `Pending accept` → `R
 
 ---
 
-## Post-Apply: S3 Bucket Policy
+## **10.0 Post-Apply: S3 Bucket Policy**
 
 After apply, update your S3 bucket policy to restrict access to Confluent's VPC endpoint. Using both the IAM principal and the VPC endpoint ID conditions prevents confused deputy attacks where another principal could attempt to route traffic through the same endpoint.
 
@@ -475,9 +444,9 @@ Replace `<egress_gateway_iam_principal>` and `<egress_s3_vpc_endpoint_id>` with 
 
 ---
 
-## Connector Configuration
+## **11.0 Connector Configuration**
 
-### S3 Sink Connector
+### **11.1 S3 Sink Connector**
 
 The S3 connector uses the standard AWS S3 endpoint. No special hostname configuration is needed — Confluent routes traffic over PrivateLink transparently via the DNS record.
 
@@ -489,7 +458,7 @@ The S3 connector uses the standard AWS S3 endpoint. No special hostname configur
 }
 ```
 
-### JDBC Source / Sink Connector
+### **11.2 JDBC Source / Sink Connector**
 
 The `connection.url` hostname **must exactly match** the `database_domain` variable — this is what `confluent_dns_record` maps to the VPC endpoint. Any mismatch will result in a DNS resolution failure inside Confluent Cloud's network.
 
@@ -506,7 +475,7 @@ The `jdbc_connector_connection_url_hint` output provides a pre-populated templat
 
 ---
 
-## Adding More Egress Endpoints
+## **12.0 Adding More Egress Endpoints**
 
 The egress gateway is shared across all connectors in the `non-prod` environment. To add additional targets — another database, Snowflake, a custom internal service — add new `confluent_access_point` and `confluent_dns_record` resource blocks to `main.tf` referencing the same `confluent_gateway.non_prod_egress.id`.
 
@@ -516,11 +485,11 @@ For a third-party native PrivateLink service (Snowflake, MongoDB Atlas, etc.), f
 
 ---
 
-## Troubleshooting
+## **13.0 Troubleshooting**
 
 **JDBC access point stuck in `Provisioning` or `Pending accept`**
 
-The endpoint connection request has not been accepted in the AWS console. See [Post-Apply: Manual AWS Acceptance Step](#post-apply-manual-aws-acceptance-step-jdbc-only).
+The endpoint connection request has not been accepted in the AWS console. See [Post-Apply: Manual AWS Acceptance Step](#90-post-apply-manual-aws-acceptance-step-jdbc-only).
 
 **JDBC connector cannot reach the database even after access point is `Ready`**
 
