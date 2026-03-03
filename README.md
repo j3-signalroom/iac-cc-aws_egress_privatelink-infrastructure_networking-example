@@ -110,7 +110,7 @@ flowchart TB
 
     subgraph TFC["Terraform Cloud — signalroom"]
         direction TB
-        WS1["Workspace: iac-cc-aws-privatelink-infrastructure-networking-example\n(Ingress — upstream)"]
+        WS1["Workspace: iac-cc-aws-ingress-privatelink-infrastructure-networking-example\n(Ingress — upstream)"]
         WS2["Workspace: iac-cc-aws-egress-privatelink-infrastructure-networking-example\n(Egress — this workspace)"]
         WS1 -- "output: non_prod_environment_id\n→ var: confluent_environment_id" --> WS2
     end
@@ -489,7 +489,7 @@ For a third-party native PrivateLink service (Snowflake, MongoDB Atlas, etc.), f
 
 **JDBC access point stuck in `Provisioning` or `Pending accept`**
 
-The endpoint connection request has not been accepted in the AWS console. See [Post-Apply: Manual AWS Acceptance Step](#post-apply-manual-aws-acceptance-step-jdbc-only).
+The endpoint connection request has not been accepted in the AWS console. See [Post-Apply: Manual AWS Acceptance Step](#90-post-apply-manual-aws-acceptance-step-jdbc-only).
 
 **JDBC connector cannot reach the database even after access point is `Ready`**
 
